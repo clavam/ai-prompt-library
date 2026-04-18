@@ -17,7 +17,7 @@ const categories = [
 
 export default function Home() {
   const router = useRouter()
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
