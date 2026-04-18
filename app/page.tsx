@@ -18,6 +18,9 @@ const categories = [
 export default function Home() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
+  
+  // 1. Add state to track the search input
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -28,6 +31,16 @@ export default function Home() {
   async function handleSignOut() {
     await supabase.auth.signOut()
     setUser(null)
+  }
+
+  // 2. Add a function to handle the search submission
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault() // Prevents the page from reloading
+    if (searchQuery.trim()) {
+      router.push(`/browse?q=${encodeURIComponent(searchQuery.trim())}`)
+    } else {
+      router.push('/browse')
+    }
   }
 
   return (
@@ -46,13 +59,13 @@ export default function Home() {
               </span>
               <button
                 onClick={handleSignOut}
-                className="bg-gray-800 text-gray-300 px-4 py-1.5 rounded-full hover:bg-gray-700"
+                className="bg-gray-800 text-gray-300 px-4 py-1.5 rounded-full hover:bg-gray-700 transition"
               >
                 Sign out
               </button>
             </div>
           ) : (
-            <Link href="/login" className="bg-violet-600 text-white px-4 py-1.5 rounded-full hover:bg-violet-500">
+            <Link href="/login" className="bg-violet-600 text-white px-4 py-1.5 rounded-full hover:bg-violet-500 transition">
               Sign in
             </Link>
           )}
@@ -67,22 +80,23 @@ export default function Home() {
         <p className="text-gray-400 text-lg max-w-xl mx-auto mb-8">
           Search thousands of curated prompts for ChatGPT, Claude, Gemini, and Midjourney — organized by profession and use case.
         </p>
-        <div className="max-w-xl mx-auto flex gap-2">
+        
+        {/* 3. Change this div to a form and bind our state and submit handler */}
+        <form onSubmit={handleSearch} className="max-w-xl mx-auto flex gap-2">
           <input
             type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search prompts... e.g. 'write a cold email'"
-            className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') router.push(`/browse?q=${(e.target as HTMLInputElement).value}`)
-            }}
+            className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500 transition"
           />
           <button
-            onClick={() => router.push('/browse')}
-            className="bg-violet-600 hover:bg-violet-500 px-6 py-3 rounded-xl text-sm font-medium"
+            type="submit"
+            className="bg-violet-600 hover:bg-violet-500 px-6 py-3 rounded-xl text-sm font-medium transition"
           >
             Search
           </button>
-        </div>
+        </form>
       </section>
 
       {/* Categories */}
