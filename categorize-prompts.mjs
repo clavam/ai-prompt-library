@@ -1,10 +1,15 @@
 // categorize-prompts.mjs
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  'https://hhjwtswrkcprljdvsrjg.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoand0c3dya2NwcmxqZHZzcmpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjA3ODcsImV4cCI6MjA5MjA5Njc4N30.-xdjfhwcUQaaMnPQAN7QaDT68XeyrOzVfqrCT4loLbo'
-)
+// --- CONFIGURATION START ---
+// The URL is already set for you. 
+const supabaseUrl = 'https://hhjwtswrkcprljdvsrjg.supabase.co';
+
+// PASTE YOUR SECRET SERVICE ROLE KEY BETWEEN THE QUOTES BELOW:
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoand0c3dya2NwcmxqZHZzcmpnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjUyMDc4NywiZXhwIjoyMDkyMDk2Nzg3fQ.CuYtea3hVOq-Gom3PNkIHNl8UNlvzTp6xHSkXILOBpg'; 
+// --- CONFIGURATION END ---
+
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 const rules = [
   { id: 2, keywords: ['code', 'programming', 'developer', 'software', 'debug', 'function', 'python', 'javascript', 'sql', 'linux', 'terminal', 'git', 'api', 'database', 'script'] },
@@ -18,21 +23,21 @@ const rules = [
 ]
 
 function categorize(title, promptText) {
-  const text = (title + ' ' + promptText).toLowerCase()
+  const text = (title + ' ' + (promptText || '')).toLowerCase()
   for (const rule of rules) {
     if (rule.keywords.some(k => text.includes(k))) {
       return rule.id
     }
   }
-  return 1 // default to writing
+  return 1 
 }
 
 async function run() {
-  console.log('Fetching prompts...')
+  console.log('🚀 Starting keyword categorization...')
   
   let from = 0
-  const batchSize = 1000
-  let total = 0
+  const batchSize = 100 
+  let totalUpdated = 0
 
   while (true) {
     const { data, error } = await supabase
@@ -40,26 +45,32 @@ async function run() {
       .select('id, title, prompt_text')
       .range(from, from + batchSize - 1)
 
-    if (error) { console.error(error); break }
+    if (error) { 
+      console.error('❌ Error fetching data:', error.message)
+      break 
+    }
+    
     if (!data || data.length === 0) break
 
-    console.log(`Processing ${data.length} prompts...`)
-
-    for (const prompt of data) {
+    const updates = data.map(async (prompt) => {
       const categoryId = categorize(prompt.title, prompt.prompt_text)
-      await supabase
+      
+      const { error: updateError } = await supabase
         .from('prompts')
         .update({ category_id: categoryId })
         .eq('id', prompt.id)
-    }
 
-    total += data.length
-    console.log(`✅ Categorized ${total} prompts so far...`)
+      if (!updateError) totalUpdated++
+    })
+
+    await Promise.all(updates)
+    console.log(`✅ Progress: Checked ${from + data.length} prompts...`)
+    
     from += batchSize
     if (data.length < batchSize) break
   }
 
-  console.log(`🎉 Done! Categorized ${total} prompts total.`)
+  console.log(`\n🎉 FINISHED! Total prompts updated: ${totalUpdated}`)
 }
 
 run()
