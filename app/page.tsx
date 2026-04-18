@@ -73,7 +73,7 @@ export default function Home() {
             placeholder="Search prompts... e.g. 'write a cold email'"
             className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500"
             onKeyDown={(e) => {
-              if (e.key === 'Enter') router.push(`/browse?q=${e.target.value}`)
+              if (e.key === 'Enter') router.push(`/browse?q=${(e.target as HTMLInputElement).value}`)
             }}
           />
           <button
