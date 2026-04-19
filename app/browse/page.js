@@ -178,6 +178,15 @@ function BrowseContent() {
 
 // Main Page Component
 export default function BrowsePage() {
+  const [user, setUser] = useState(null)
+
+  useEffect(() => {
+    // Check if the user is logged in when the page loads
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+    })
+  }, [])
+
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       {/* Navbar */}
@@ -186,7 +195,17 @@ export default function BrowsePage() {
         <div className="flex gap-4 text-sm text-gray-400 items-center">
           <Link href="/browse" className="text-white font-medium">Browse</Link>
           <Link href="/submit" className="hover:text-white">Submit</Link>
-          <Link href="/login" className="bg-violet-600 text-white px-4 py-1.5 rounded-full hover:bg-violet-500">Sign in</Link>
+          
+          {/* THE SMART PROFILE LINK */}
+          {user ? (
+            <Link href="/profile" className="bg-gray-800 text-violet-300 px-4 py-1.5 rounded-full font-medium hover:bg-gray-700 hover:text-white transition">
+              {user.user_metadata?.username || user.email.split('@')[0]}
+            </Link>
+          ) : (
+            <Link href="/login" className="bg-violet-600 text-white px-4 py-1.5 rounded-full hover:bg-violet-500">
+              Sign in
+            </Link>
+          )}
         </div>
       </nav>
 

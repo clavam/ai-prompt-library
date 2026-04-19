@@ -54,12 +54,17 @@ export default function Home() {
           <Link href="/submit" className="hover:text-white">Submit</Link>
           {user ? (
             <div className="flex items-center gap-3">
-              <span className="text-violet-300 font-medium">
+              {/* THIS IS THE SMART LINK TO THE PROFILE */}
+              <Link 
+                href="/profile" 
+                className="bg-gray-800 text-violet-300 px-4 py-1.5 rounded-full font-medium hover:bg-gray-700 hover:text-white transition"
+              >
                 {user.user_metadata?.username || user.email.split('@')[0]}
-              </span>
+              </Link>
+              
               <button
                 onClick={handleSignOut}
-                className="bg-gray-800 text-gray-300 px-4 py-1.5 rounded-full hover:bg-gray-700 transition"
+                className="text-gray-400 hover:text-white transition"
               >
                 Sign out
               </button>
@@ -81,7 +86,7 @@ export default function Home() {
           Search thousands of curated prompts for ChatGPT, Claude, Gemini, and Midjourney — organized by profession and use case.
         </p>
         
-        {/* 3. Change this div to a form and bind our state and submit handler */}
+        {/* Search Form */}
         <form onSubmit={handleSearch} className="max-w-xl mx-auto flex gap-2">
           <input
             type="text"
