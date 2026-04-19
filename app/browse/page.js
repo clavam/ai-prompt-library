@@ -51,19 +51,26 @@ function BrowseContent() {
     if (search) query = query.ilike('title', `%${search}%`)
     if (selectedTool !== 'All') query = query.eq('ai_tool', selectedTool)
     
-    // 2. CHANGED THIS: Translating the string ('coding') into the ID (2)
     if (selectedCategory !== 'All') {
       const categoryId = categoryMap[selectedCategory.toLowerCase()]
+      
+      // DETECTIVE LOG 1: What is it searching for?
+      console.log(`🔎 User clicked: ${selectedCategory} | Converted to ID: ${categoryId}`)
+      
       if (categoryId) {
         query = query.eq('category_id', categoryId)
       }
     }
 
     const { data, error } = await query
+    
+    // DETECTIVE LOG 2: What did Supabase say back?
+    if (error) console.error("🚨 SUPABASE ERROR:", error)
+    console.log(`📦 Data found:`, data)
+
     if (!error && data) {
       setPrompts(data)
     } else {
-      console.error("Error fetching prompts:", error)
       setPrompts([])
     }
     setLoading(false)
