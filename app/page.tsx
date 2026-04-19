@@ -89,21 +89,18 @@ export default function Home() {
         {/* Search Form */}
         <form onSubmit={handleSearch} className="max-w-xl mx-auto flex gap-2">
           <input
-  type="text"
-  value={search}
-  onChange={(e) => setSearch(e.target.value)}
-  onKeyDown={(e) => {
-    if (e.key === 'Enter' && search.trim()) router.push(`/browse?q=${encodeURIComponent(search.trim())}`)
-  }}
-  placeholder="Search prompts... e.g. 'write a cold email'"
-  className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500"
-/>
-<button
-  onClick={() => { if (search.trim()) router.push(`/browse?q=${encodeURIComponent(search.trim())}`) }}
-  className="bg-violet-600 hover:bg-violet-500 px-6 py-3 rounded-xl text-sm font-medium"
->
-  Search
-</button>
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search prompts... e.g. 'write a cold email'"
+            className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500 transition"
+          />
+          <button
+            type="submit"
+            className="bg-violet-600 hover:bg-violet-500 px-6 py-3 rounded-xl text-sm font-medium transition"
+          >
+            Search
+          </button>
         </form>
       </section>
 
