@@ -12,13 +12,23 @@ const toolColors = {
   midjourney: 'bg-pink-500/20 text-pink-300',
 }
 
-// Added the categories so users can filter by them on this page too
 const categories = ['All', 'writing', 'coding', 'business', 'design', 'education', 'personal', 'research', 'marketing']
+
+// 1. ADDED THIS: The translation map for your new database IDs
+const categoryMap = {
+  'writing': 1,
+  'coding': 2,
+  'business': 3,
+  'design': 4,
+  'education': 5,
+  'personal': 6,
+  'research': 7,
+  'marketing': 8
+}
 
 function BrowseContent() {
   const searchParams = useSearchParams()
   
-  // Initialize state directly from the URL parameters!
   const [search, setSearch] = useState(searchParams.get('q') || '')
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'All')
   const [selectedTool, setSelectedTool] = useState('All')
@@ -38,10 +48,16 @@ function BrowseContent() {
       .select('*')
       .order('created_at', { ascending: false })
 
-    // Apply filters based on state
     if (search) query = query.ilike('title', `%${search}%`)
     if (selectedTool !== 'All') query = query.eq('ai_tool', selectedTool)
-    if (selectedCategory !== 'All') query = query.eq('category', selectedCategory)
+    
+    // 2. CHANGED THIS: Translating the string ('coding') into the ID (2)
+    if (selectedCategory !== 'All') {
+      const categoryId = categoryMap[selectedCategory.toLowerCase()]
+      if (categoryId) {
+        query = query.eq('category_id', categoryId)
+      }
+    }
 
     const { data, error } = await query
     if (!error && data) {
