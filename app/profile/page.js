@@ -75,6 +75,7 @@ export default function ProfilePage() {
 
   function copyPrompt(e, text, id) {
     e.preventDefault()
+    e.stopPropagation() // <-- ADD THIS LINE
     navigator.clipboard.writeText(text)
     setCopied(id)
     setTimeout(() => setCopied(null), 2000)
@@ -203,29 +204,34 @@ export default function ProfilePage() {
                     <div className="grid gap-4">
                       {/* Mapping Vault Prompts */}
                       {activeVaultPrompts.map((prompt) => (
-                        <div key={prompt.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 hover:border-violet-700 transition block group relative">
-                          <Link href={`/prompt/${prompt.id}`} className="absolute inset-0 z-0"></Link>
-                          <div className="relative z-10">
-                            <div className="flex items-start justify-between gap-4 mb-3">
-                              <h3 className="text-lg font-semibold">{prompt.title}</h3>
-                              <span className={`text-xs px-3 py-1 rounded-full shrink-0 ${toolColors[prompt.ai_tool] || 'bg-gray-700 text-gray-300'}`}>
-                                {prompt.ai_tool}
-                              </span>
-                            </div>
-                            <div className="bg-gray-800 rounded-xl p-4 text-sm text-gray-300 font-mono mb-4 line-clamp-2">
-                              {prompt.prompt_text}
-                            </div>
-                            <div className="flex items-center justify-between mt-4">
-                              <span className="text-xs text-gray-500 group-hover:text-violet-400 transition">View details &rarr;</span>
-                              <button
-                                onClick={(e) => copyPrompt(e, prompt.prompt_text, prompt.id)}
-                                className="text-sm bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl transition shrink-0"
-                              >
-                                {copied === prompt.id ? '✅ Copied!' : '📋 Copy'}
-                              </button>
-                            </div>
+                        <Link 
+                          key={prompt.id} 
+                          href={`/prompt/${prompt.id}`} 
+                          className="bg-gray-900 border border-gray-800 rounded-2xl p-6 hover:border-violet-700 transition flex flex-col group"
+                        >
+                          <div className="flex items-start justify-between gap-4 mb-3">
+                            <h3 className="text-lg font-semibold line-clamp-1">{prompt.title}</h3>
+                            <span className={`text-xs px-3 py-1 rounded-full shrink-0 ${toolColors[prompt.ai_tool] || 'bg-gray-700 text-gray-300'}`}>
+                              {prompt.ai_tool}
+                            </span>
                           </div>
-                        </div>
+                          
+                          <div className="bg-gray-800 rounded-xl p-4 text-sm text-gray-300 font-mono mb-4 line-clamp-2">
+                            {prompt.prompt_text}
+                          </div>
+                          
+                          <div className="flex items-center justify-between mt-auto">
+                            <span className="text-xs text-gray-500 group-hover:text-violet-400 transition">
+                              View details &rarr;
+                            </span>
+                            <button
+                              onClick={(e) => copyPrompt(e, prompt.prompt_text, prompt.id)}
+                              className="text-sm bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl transition shrink-0"
+                            >
+                              {copied === prompt.id ? '✅ Copied!' : '📋 Copy'}
+                            </button>
+                          </div>
+                        </Link>
                       ))}
                     </div>
                   )}
