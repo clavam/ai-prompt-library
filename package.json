@@ -11,6 +11,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.103.3",
+    "csv-parser": "^3.2.0",
     "dotenv": "^17.4.2",
     "groq-sdk": "^1.1.2",
     "next": "16.2.4",
