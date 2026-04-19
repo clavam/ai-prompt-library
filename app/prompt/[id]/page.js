@@ -146,14 +146,15 @@ export default function PromptPage() {
       .single()
 
     if (newCol) {
-      // Add it to the UI list immediately
       setCollections([newCol, ...collections])
       setNewCollectionName('')
-      // Automatically save the prompt to this new folder
       await saveToCollection(newCol.id)
     } else {
       setIsSaving(false)
       setSaveMessage('Failed to create collection.')
+      
+      // 🚨 ADD THIS LINE to see the exact error:
+      console.error("SUPABASE CREATE ERROR:", createError) 
     }
   }
 
