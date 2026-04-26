@@ -31,6 +31,7 @@ function BrowseContent() {
   
   // States
   const [viewMode, setViewMode] = useState('prompts') // 'prompts' or 'directory'
+  const [search, setSearch] = useState(searchParams.get('q') || '') // Fixed missing search state
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get('q') || '')
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [selectedTool, setSelectedTool] = useState('All')
@@ -39,41 +40,67 @@ function BrowseContent() {
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(null)
 
+  // Step 1: Pagination States
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const ITEMS_PER_PAGE = 20
+
   // Initial load check for URL parameters
   useEffect(() => {
-  const q = searchParams.get('q')
-  if (q) setSearch(decodeURIComponent(q))
+    const q = searchParams.get('q')
+    if (q) setSearch(decodeURIComponent(q))
 
-  const catSlug = searchParams.get('category')
-  if (catSlug) {
-    const found = ALL_CATEGORIES.find(c => 
-      c.name.toLowerCase().includes(catSlug.toLowerCase().split(' ')[0])
-    )
-    if (found) setSelectedCategoryId(found.id)
-  }
+    const catSlug = searchParams.get('category')
+    if (catSlug) {
+      const found = ALL_CATEGORIES.find(c => 
+        c.name.toLowerCase().includes(catSlug.toLowerCase().split(' ')[0])
+      )
+      if (found) setSelectedCategoryId(found.id)
+    }
   }, [searchParams])
+
   useEffect(() => {
-  const timer = setTimeout(() => {
-    setDebouncedSearch(search)
-  }, 400)
-  return () => clearTimeout(timer)
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 400)
+    return () => clearTimeout(timer)
   }, [search])
 
+  // Step 3: Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, selectedTool, selectedCategoryId])
+
+  // Step 3: Add 'page' to dependency array
   useEffect(() => {
     if (viewMode === 'prompts') fetchPrompts()
-  }, [debouncedSearch, selectedTool, selectedCategoryId, viewMode])
+  }, [debouncedSearch, selectedTool, selectedCategoryId, viewMode, page])
 
+  // Step 2: Updated fetchPrompts function with pagination
   async function fetchPrompts() {
     setLoading(true)
-    let query = supabase.from('prompts').select('*').order('created_at', { ascending: false })
-
+    
+    const from = (page - 1) * ITEMS_PER_PAGE
+    const to = from + ITEMS_PER_PAGE - 1
+    
+    let query = supabase
+      .from('prompts')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, to)
+    
     if (debouncedSearch) query = query.or(`title.ilike.%${debouncedSearch}%,description.ilike.%${debouncedSearch}%`)
     if (selectedTool !== 'All') query = query.eq('ai_tool', selectedTool)
     if (selectedCategoryId) query = query.eq('category_id', selectedCategoryId)
-
-    const { data, error } = await query
-    if (!error && data) setPrompts(data)
-    else setPrompts([])
+    
+    const { data, error, count } = await query
+    
+    if (!error && data) {
+      setPrompts(data)
+      setTotalCount(count || 0)
+    } else {
+      setPrompts([])
+    }
     setLoading(false)
   }
 
@@ -205,6 +232,31 @@ function BrowseContent() {
                   </div>
                 </Link>
               ))}
+            </div>
+          )}
+
+          {/* Step 4: Pagination UI */}
+          {!loading && totalCount > ITEMS_PER_PAGE && (
+            <div className="flex items-center justify-center gap-3 mt-8">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-sm disabled:opacity-40 hover:border-violet-600 transition"
+              >
+                ← Previous
+              </button>
+              
+              <span className="text-sm text-gray-400">
+                Page {page} of {Math.ceil(totalCount / ITEMS_PER_PAGE)}
+              </span>
+              
+              <button
+                onClick={() => setPage(p => Math.min(Math.ceil(totalCount / ITEMS_PER_PAGE), p + 1))}
+                disabled={page === Math.ceil(totalCount / ITEMS_PER_PAGE)}
+                className="px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-sm disabled:opacity-40 hover:border-violet-600 transition"
+              >
+                Next →
+              </button>
             </div>
           )}
         </>
