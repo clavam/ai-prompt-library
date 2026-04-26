@@ -41,13 +41,17 @@ function BrowseContent() {
 
   // Initial load check for URL parameters
   useEffect(() => {
-    const catSlug = searchParams.get('category')
-    if (catSlug) {
-      // Find the category by matching the slug roughly to the name
-      const found = ALL_CATEGORIES.find(c => c.name.toLowerCase().includes(catSlug.toLowerCase().split(' ')[0]))
-      if (found) setSelectedCategoryId(found.id)
-    }
-  }, [searchParams])
+  const q = searchParams.get('q')
+  if (q) setSearch(decodeURIComponent(q))
+
+  const catSlug = searchParams.get('category')
+  if (catSlug) {
+    const found = ALL_CATEGORIES.find(c => 
+      c.name.toLowerCase().includes(catSlug.toLowerCase().split(' ')[0])
+    )
+    if (found) setSelectedCategoryId(found.id)
+  }
+}, [searchParams])
 
   useEffect(() => {
     if (viewMode === 'prompts') fetchPrompts()
@@ -57,7 +61,7 @@ function BrowseContent() {
     setLoading(true)
     let query = supabase.from('prompts').select('*').order('created_at', { ascending: false })
 
-    if (search) query = query.ilike('title', `%${search}%`)
+    if (search) query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,prompt_text.ilike.%${search}%`)
     if (selectedTool !== 'All') query = query.eq('ai_tool', selectedTool)
     if (selectedCategoryId) query = query.eq('category_id', selectedCategoryId)
 
