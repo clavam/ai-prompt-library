@@ -31,7 +31,7 @@ function BrowseContent() {
   
   // States
   const [viewMode, setViewMode] = useState('prompts') // 'prompts' or 'directory'
-  const [search, setSearch] = useState(searchParams.get('q') || '')
+  const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get('q') || '')
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [selectedTool, setSelectedTool] = useState('All')
   
@@ -51,17 +51,23 @@ function BrowseContent() {
     )
     if (found) setSelectedCategoryId(found.id)
   }
-}, [searchParams])
+  }, [searchParams])
+  useEffect(() => {
+  const timer = setTimeout(() => {
+    setDebouncedSearch(search)
+  }, 400)
+  return () => clearTimeout(timer)
+  }, [search])
 
   useEffect(() => {
     if (viewMode === 'prompts') fetchPrompts()
-  }, [search, selectedTool, selectedCategoryId, viewMode])
+  }, [debouncedSearch, selectedTool, selectedCategoryId, viewMode])
 
   async function fetchPrompts() {
     setLoading(true)
     let query = supabase.from('prompts').select('*').order('created_at', { ascending: false })
 
-    if (search) query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,prompt_text.ilike.%${search}%`)
+    if (debouncedSearch) query = query.or(`title.ilike.%${debouncedSearch}%,description.ilike.%${debouncedSearch}%`)
     if (selectedTool !== 'All') query = query.eq('ai_tool', selectedTool)
     if (selectedCategoryId) query = query.eq('category_id', selectedCategoryId)
 
