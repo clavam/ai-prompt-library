@@ -14,6 +14,23 @@ export default function LoginPage() {
   const [message, setMessage] = useState(null)
   const [error, setError] = useState(null)
 
+  // Handle Google and GitHub Logins
+  async function handleSocialLogin(provider: 'google' | 'github') {
+    setLoading(true)
+    setError(null)
+    
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+
+    if (error) setError(error.message)
+    setLoading(false)
+  }
+
+  // Handle Email/Password Sign In or Sign Up
   async function handleSubmit() {
     setLoading(true)
     setError(null)
@@ -27,7 +44,7 @@ export default function LoginPage() {
       })
       if (error) setError(error.message)
       else {
-        // Create profile row
+        // Create profile row for Email signups
         if (data.user) {
           await supabase.from('profiles').insert({
             id: data.user.id,
@@ -45,81 +62,109 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white flex flex-col">
-
+    <main className="min-h-screen bg-gray-950 text-white flex flex-col font-sans">
       {/* Navbar */}
       <nav className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="text-xl font-bold text-violet-400">PromptVault</Link>
+        <Link href="/" className="text-xl font-bold text-violet-400 tracking-tight">PromptVault</Link>
       </nav>
 
-      {/* Form */}
-      <div className="flex flex-1 items-center justify-center px-6">
-        <div className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-8">
+      {/* Form Container */}
+      <div className="flex flex-1 items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-2xl">
 
-          {/* Toggle */}
+          {/* Sign In / Sign Up Toggle */}
           <div className="flex bg-gray-800 rounded-xl p-1 mb-8">
             <button
               onClick={() => setIsSignUp(false)}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${!isSignUp ? 'bg-violet-600 text-white' : 'text-gray-400'}`}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${!isSignUp ? 'bg-violet-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'}`}
             >
               Sign In
             </button>
             <button
               onClick={() => setIsSignUp(true)}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${isSignUp ? 'bg-violet-600 text-white' : 'text-gray-400'}`}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${isSignUp ? 'bg-violet-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-200'}`}
             >
               Sign Up
             </button>
           </div>
 
-          <h1 className="text-2xl font-bold mb-6">
+          <h1 className="text-2xl font-bold mb-6 text-center">
             {isSignUp ? 'Create your account' : 'Welcome back'}
           </h1>
 
+          {/* Social Login Buttons */}
+          <div className="grid grid-cols-2 gap-4 mb-8">
+            <button
+              onClick={() => handleSocialLogin('google')}
+              className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 py-3 rounded-xl text-sm font-medium transition"
+            >
+              <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
+              Google
+            </button>
+            <button
+              onClick={() => handleSocialLogin('github')}
+              className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 py-3 rounded-xl text-sm font-medium transition"
+            >
+              <img src="https://github.com/favicon.ico" alt="GitHub" className="w-4 h-4 invert" />
+              GitHub
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="relative mb-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-800"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-gray-900 px-3 text-gray-500 font-medium">Or continue with email</span>
+            </div>
+          </div>
+
+          {/* Email/Password Fields */}
           <div className="flex flex-col gap-4">
             {isSignUp && (
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">Username</label>
+                <label className="text-sm text-gray-400 mb-1.5 block">Username</label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="e.g. promptmaster"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition"
                 />
               </div>
             )}
 
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">Email</label>
+              <label className="text-sm text-gray-400 mb-1.5 block">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition"
               />
             </div>
 
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">Password</label>
+              <label className="text-sm text-gray-400 mb-1.5 block">Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition"
               />
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl">
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs px-4 py-3 rounded-xl leading-relaxed">
                 {error}
               </div>
             )}
 
             {message && (
-              <div className="bg-green-500/10 border border-green-500/30 text-green-400 text-sm px-4 py-3 rounded-xl">
+              <div className="bg-green-500/10 border border-green-500/30 text-green-400 text-xs px-4 py-3 rounded-xl leading-relaxed">
                 {message}
               </div>
             )}
@@ -127,10 +172,14 @@ export default function LoginPage() {
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 py-3 rounded-xl font-medium transition mt-2"
+              className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 py-3.5 rounded-xl font-semibold transition shadow-lg shadow-violet-600/20 mt-4"
             >
-              {loading ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In'}
+              {loading ? 'Processing...' : isSignUp ? 'Create Account' : 'Sign In'}
             </button>
+            
+            <p className="text-center text-xs text-gray-500 mt-4">
+              By continuing, you agree to our Terms of Service and Privacy Policy.
+            </p>
           </div>
         </div>
       </div>
