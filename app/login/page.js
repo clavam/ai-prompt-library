@@ -15,7 +15,7 @@ export default function LoginPage() {
   const [error, setError] = useState(null)
 
   // Handle Google and GitHub Logins
-  async function handleSocialLogin(provider: 'google' | 'github') {
+  async function handleSocialLogin(provider) {
     setLoading(true)
     setError(null)
     
