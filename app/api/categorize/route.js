@@ -86,9 +86,22 @@ export async function POST(req) {
     // 4. Extract the number from Gemini's response
     const aiText = data.candidates[0].content.parts[0].text.trim();
     
-    // --> ADD THESE TWO LINES SO WE CAN SEE IT IN VERCEL <--
-    console.log("=== GEMINI RAW ANSWER ===");
-    console.log(aiText);
+   // 4. Extract the number from Gemini's response safely
+    console.log("=== FULL GEMINI RESPONSE ===");
+    console.log(JSON.stringify(data, null, 2)); // This will show the whole error in Vercel Logs
+
+    // Check if Gemini actually sent back a result
+    if (!data.candidates || data.candidates.length === 0) {
+      console.error("Gemini failed to provide a candidate. Check safety filters or API key.");
+      return NextResponse.json({ categoryId: 99 });
+    }
+
+    const aiText = data.candidates[0].content.parts[0].text.trim();
+    const match = aiText.match(/\d+/); 
+    const categoryId = match ? parseInt(match[0]) : 99;
+
+    console.log("=== CATEGORIZED AS:", categoryId, "===");
+    return NextResponse.json({ categoryId });
 
     const match = aiText.match(/\d+/); 
     const categoryId = match ? parseInt(match[0]) : 99;
