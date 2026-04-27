@@ -83,6 +83,15 @@ export async function POST(req) {
     
     // 4. Extract the number from Gemini's response
     const aiText = data.candidates[0].content.parts[0].text.trim();
+    // 4. Extract the number from Gemini's response
+    const aiText = data.candidates[0].content.parts[0].text.trim();
+    
+    // --> ADD THESE TWO LINES SO WE CAN SEE IT IN VERCEL <--
+    console.log("=== GEMINI RAW ANSWER ===");
+    console.log(aiText);
+
+    const match = aiText.match(/\d+/); 
+    const categoryId = match ? parseInt(match[0]) : 99;
     const categoryId = parseInt(aiText) || 99; // Fallback to 99 if it fails to parse
 
     // 5. Send the ID back to the frontend
