@@ -5,16 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 const aiTools = ['claude', 'chatgpt', 'gemini', 'midjourney']
-const categories = [
-  { id: 1, name: 'Writing' },
-  { id: 2, name: 'Coding' },
-  { id: 3, name: 'Business' },
-  { id: 4, name: 'Design' },
-  { id: 5, name: 'Education' },
-  { id: 6, name: 'Personal' },
-  { id: 7, name: 'Research' },
-  { id: 8, name: 'Marketing' },
-]
 
 export default function SubmitPage() {
   const router = useRouter()
@@ -27,7 +17,6 @@ export default function SubmitPage() {
   const [description, setDescription] = useState('')
   const [promptText, setPromptText] = useState('')
   const [aiTool, setAiTool] = useState('claude')
-  const [categoryId, setCategoryId] = useState(1)
   const [useCase, setUseCase] = useState('')
   const [tags, setTags] = useState('')
 
@@ -45,16 +34,36 @@ export default function SubmitPage() {
     }
     setLoading(true)
     setError(null)
-    const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean)
-    const { error } = await supabase.from('prompts').insert({
-      title, description, prompt_text: promptText,
-      ai_tool: aiTool, category_id: categoryId,
-      use_case: useCase, tags: tagsArray,
-      user_id: user?.id || null,
-    })
-    if (error) setError(error.message)
-    else setSuccess(true)
-    setLoading(false)
+
+    try {
+      // 1. Ask the backend AI to categorize it invisibly
+      const aiResponse = await fetch('/api/categorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, promptText })
+      })
+      const { categoryId } = await aiResponse.json()
+
+      // 2. Save everything to Supabase (using the AI's category ID)
+      const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean)
+      const { error: dbError } = await supabase.from('prompts').insert({
+        title, 
+        description, 
+        prompt_text: promptText,
+        ai_tool: aiTool, 
+        category_id: categoryId, // <--- Added invisibly here!
+        use_case: useCase, 
+        tags: tagsArray,
+        user_id: user?.id || null,
+      })
+
+      if (dbError) throw new Error(dbError.message)
+      setSuccess(true)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (success) return (
@@ -107,25 +116,14 @@ export default function SubmitPage() {
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500 resize-none" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm text-gray-400 mb-1 block">AI Tool <span className="text-red-400">*</span></label>
-              <select value={aiTool} onChange={(e) => setAiTool(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500">
-                {aiTools.map(tool => (
-                  <option key={tool} value={tool}>{tool.charAt(0).toUpperCase() + tool.slice(1)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm text-gray-400 mb-1 block">Category</label>
-              <select value={categoryId} onChange={(e) => setCategoryId(Number(e.target.value))}
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500">
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="text-sm text-gray-400 mb-1 block">AI Tool <span className="text-red-400">*</span></label>
+            <select value={aiTool} onChange={(e) => setAiTool(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500">
+              {aiTools.map(tool => (
+                <option key={tool} value={tool}>{tool.charAt(0).toUpperCase() + tool.slice(1)}</option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -148,7 +146,7 @@ export default function SubmitPage() {
 
           <button onClick={handleSubmit} disabled={loading}
             className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 py-3 rounded-xl font-medium transition">
-            {loading ? 'Submitting...' : 'Submit Prompt'}
+            {loading ? 'Analyzing & Submitting...' : 'Submit Prompt'}
           </button>
         </div>
       </div>
