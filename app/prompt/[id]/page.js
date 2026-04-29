@@ -30,7 +30,7 @@ export default function PromptPage() {
   const [upvoted, setUpvoted] = useState(false)
   const [upvoteCount, setUpvoteCount] = useState(0)
 
-  // NEW: Collections States
+  // Collections States
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [collections, setCollections] = useState([])
   const [newCollectionName, setNewCollectionName] = useState('')
@@ -43,6 +43,22 @@ export default function PromptPage() {
       setUser(session?.user ?? null)
     })
   }, [id])
+
+  // NEW: Check if the user already upvoted this prompt
+  useEffect(() => {
+    if (user && id) checkUserVote()
+  }, [user, id])
+
+  async function checkUserVote() {
+    const { data } = await supabase
+      .from('votes')
+      .select('id')
+      .eq('prompt_id', id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (data) setUpvoted(true)
+  }
 
   async function fetchPrompt() {
     const { data, error } = await supabase
@@ -63,19 +79,33 @@ export default function PromptPage() {
     setLoading(false)
   }
 
+  // UPGRADED: Toggle upvotes (Add or Remove)
   async function handleUpvote() {
     if (!user) { router.push('/login'); return }
-    if (upvoted) return
 
+    // IF ALREADY UPVOTED -> REMOVE THE VOTE
+    if (upvoted) {
+      const { error } = await supabase
+        .from('votes')
+        .delete()
+        .eq('prompt_id', id)
+        .eq('user_id', user.id)
+
+      if (!error) {
+        await supabase.from('prompts').update({ upvotes: upvoteCount - 1 }).eq('id', id)
+        setUpvoteCount(prev => prev - 1)
+        setUpvoted(false)
+      }
+      return
+    }
+
+    // IF NOT UPVOTED -> ADD THE VOTE
     const { error } = await supabase
       .from('votes')
       .insert({ user_id: user.id, prompt_id: id })
 
     if (!error) {
-      await supabase
-        .from('prompts')
-        .update({ upvotes: upvoteCount + 1 })
-        .eq('id', id)
+      await supabase.from('prompts').update({ upvotes: upvoteCount + 1 }).eq('id', id)
       setUpvoteCount(prev => prev + 1)
       setUpvoted(true)
     }
@@ -87,9 +117,8 @@ export default function PromptPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // --- NEW: COLLECTIONS LOGIC ---
+  // --- COLLECTIONS LOGIC ---
 
-  // 1. Open Modal & Fetch User's Folders
   async function handleOpenSaveModal() {
     if (!user) { 
       router.push('/login')
@@ -107,7 +136,6 @@ export default function PromptPage() {
     if (data) setCollections(data)
   }
 
-  // 2. Save prompt to an existing folder
   async function saveToCollection(collectionId) {
     setIsSaving(true)
     setSaveMessage('')
@@ -119,7 +147,6 @@ export default function PromptPage() {
     setIsSaving(false)
 
     if (error) {
-      // 23505 is the standard SQL error code for "Unique constraint violation" (already saved)
       if (error.code === '23505') {
         setSaveMessage('Already saved in this collection!')
       } else {
@@ -127,18 +154,16 @@ export default function PromptPage() {
       }
     } else {
       setSaveMessage('✅ Saved successfully!')
-      setTimeout(() => setIsModalOpen(false), 1500) // Close modal after success
+      setTimeout(() => setIsModalOpen(false), 1500) 
     }
   }
 
-  // 3. Create a new folder and immediately save the prompt to it
   async function handleCreateCollection(e) {
     e.preventDefault()
     if (!newCollectionName.trim()) return
     
     setIsSaving(true)
     
-    // Create the collection
     const { data: newCol, error: createError } = await supabase
       .from('collections')
       .insert({ user_id: user.id, name: newCollectionName.trim() })
@@ -152,8 +177,6 @@ export default function PromptPage() {
     } else {
       setIsSaving(false)
       setSaveMessage('Failed to create collection.')
-      
-      // 🚨 ADD THIS LINE to see the exact error:
       console.error("SUPABASE CREATE ERROR:", createError) 
     }
   }
@@ -168,7 +191,6 @@ export default function PromptPage() {
 
   return (
     <main className="min-h-screen bg-gray-950 text-white relative">
-      {/* Navbar */}
       <nav className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
         <Link href="/" className="text-xl font-bold text-violet-400">PromptVault</Link>
         <div className="flex gap-4 text-sm text-gray-400 items-center">
@@ -187,12 +209,10 @@ export default function PromptPage() {
       </nav>
 
       <div className="max-w-3xl mx-auto px-6 py-12">
-        {/* Back */}
         <Link href="/browse" className="text-sm text-gray-500 hover:text-gray-300 flex items-center gap-1 mb-8">
           ← Back to Browse
         </Link>
 
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 mb-4">
           <h1 className="text-3xl font-bold">{prompt.title}</h1>
           <span className={`text-sm px-3 py-1 rounded-full border shrink-0 ${toolColors[prompt.ai_tool] || 'bg-gray-700 text-gray-300 border-gray-600'}`}>
@@ -204,14 +224,12 @@ export default function PromptPage() {
           <p className="text-gray-400 mb-6">{prompt.description}</p>
         )}
 
-        {/* Stats */}
         <div className="flex gap-6 text-sm text-gray-500 mb-8">
           <span>👁 {prompt.views || 0} views</span>
           <span>👍 {upvoteCount} upvotes</span>
           {prompt.use_case && <span>🎯 {prompt.use_case}</span>}
         </div>
 
-        {/* Prompt Box */}
         <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm text-gray-400 font-medium">Prompt</span>
@@ -227,7 +245,6 @@ export default function PromptPage() {
           </p>
         </div>
 
-        {/* Tags */}
         {prompt.tags?.length > 0 && (
           <div className="flex gap-2 flex-wrap mb-8">
             {prompt.tags.map(tag => (
@@ -238,21 +255,18 @@ export default function PromptPage() {
           </div>
         )}
 
-        {/* Action Buttons */}
         <div className="flex flex-wrap gap-4 mt-8 pt-8 border-t border-gray-800">
           <button
             onClick={handleUpvote}
-            disabled={upvoted}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition text-sm ${
               upvoted
-                ? 'bg-violet-900/40 text-violet-300 border border-violet-700 cursor-default'
+                ? 'bg-violet-900/40 text-violet-300 border border-violet-700'
                 : 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-700'
             }`}
           >
             👍 {upvoted ? 'Upvoted!' : 'Upvote'} · {upvoteCount}
           </button>
 
-          {/* NEW: Save Button */}
           <button
             onClick={handleOpenSaveModal}
             className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 px-6 py-3 rounded-xl font-medium text-sm transition"
@@ -270,7 +284,6 @@ export default function PromptPage() {
         </div>
       </div>
 
-      {/* NEW: Collections Modal Overlay */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
@@ -289,7 +302,6 @@ export default function PromptPage() {
                 </div>
               )}
 
-              {/* List of existing collections */}
               <div className="max-h-60 overflow-y-auto mb-6 pr-2">
                 {collections.length === 0 ? (
                   <p className="text-gray-500 text-sm text-center py-4">You don't have any collections yet.</p>
@@ -310,7 +322,6 @@ export default function PromptPage() {
                 )}
               </div>
 
-              {/* Create new collection form */}
               <form onSubmit={handleCreateCollection} className="flex gap-2">
                 <input
                   type="text"
