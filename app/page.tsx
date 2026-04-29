@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
@@ -19,31 +19,63 @@ export default function Home() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
   
-  // 1. Separate states for the two different search bars
+  // States
   const [promptSearchQuery, setPromptSearchQuery] = useState('')
   const [userSearchQuery, setUserSearchQuery] = useState('')
+  
+  // NEW: Live Search States
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
 
- useEffect(() => {
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // THE INTERCEPTOR: Trap them if they haven't finished setup!
-        if (session.user.user_metadata?.setup_complete !== true) {
-          router.push('/setup')
-        } else {
-          setUser(session.user)
-        }
-      } else {
-        setUser(null)
-      }
+      setUser(session?.user ?? null)
     })
-  }, [router])
+  }, [])
+
+  // NEW: Click Outside Listener (Closes the dropdown if you click somewhere else)
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  // NEW: The "Debounced" Live Search
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (userSearchQuery.trim().length > 0) {
+        setIsSearching(true)
+        setShowDropdown(true)
+        
+        // Fetch users whose username contains the search query
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url, reputation')
+          .ilike('username', `%${userSearchQuery.trim()}%`)
+          .limit(5)
+
+        if (data) setSearchResults(data)
+        setIsSearching(false)
+      } else {
+        setSearchResults([])
+        setShowDropdown(false)
+      }
+    }, 300) // Waits 300ms after you stop typing
+
+    return () => clearTimeout(delayDebounceFn)
+  }, [userSearchQuery])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
     setUser(null)
   }
 
-  // 2. Handler for the Hero Search (Searching Prompts)
   const handlePromptSearch = (e: React.FormEvent) => {
     e.preventDefault() 
     if (promptSearchQuery.trim()) {
@@ -53,10 +85,11 @@ export default function Home() {
     }
   }
 
-  // 3. Handler for the Navbar Search (Searching Users)
   const handleUserSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    // If they hit enter, take them to the first result or the exact match
     if (userSearchQuery.trim()) {
+      setShowDropdown(false)
       router.push(`/user/${encodeURIComponent(userSearchQuery.trim())}`)
     }
   }
@@ -64,30 +97,66 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#050505] text-white selection:bg-violet-500/30">
 
-      {/* Upgraded Premium Navbar with User Search */}
       <nav className="sticky top-0 z-40 border-b border-white/5 bg-[#050505]/80 backdrop-blur-md px-6 py-4 flex items-center justify-between gap-6">
         
-        {/* Logo */}
         <Link href="/" className="text-xl font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent hidden sm:block shrink-0">
           PromptVault
         </Link>
 
-        {/* User Search Bar */}
-        <form onSubmit={handleUserSearch} className="flex-1 max-w-lg mx-auto">
-          <div className="relative group">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
-            <input
-              type="text"
-              value={userSearchQuery}
-              onChange={(e) => setUserSearchQuery(e.target.value)}
-              placeholder="Search users (e.g. Rasesh)..."
-              className="w-full bg-white/5 border border-white/10 rounded-full pl-11 pr-4 py-2.5 text-sm outline-none focus:border-violet-500 focus:bg-white/10 transition-all text-white placeholder-gray-500 shadow-inner"
-            />
-            <button type="submit" className="hidden">Search</button>
-          </div>
-        </form>
+        {/* UPGRADED: User Search Bar with Dropdown Container */}
+        <div ref={searchRef} className="flex-1 max-w-lg mx-auto relative">
+          <form onSubmit={handleUserSearch} className="w-full">
+            <div className="relative group">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
+              <input
+                type="text"
+                value={userSearchQuery}
+                onChange={(e) => setUserSearchQuery(e.target.value)}
+                onFocus={() => userSearchQuery.trim() && setShowDropdown(true)}
+                placeholder="Search users..."
+                className="w-full bg-white/5 border border-white/10 rounded-full pl-11 pr-4 py-2.5 text-sm outline-none focus:border-violet-500 focus:bg-white/10 transition-all text-white placeholder-gray-500 shadow-inner"
+              />
+              <button type="submit" className="hidden">Search</button>
+            </div>
+          </form>
 
-        {/* Navigation & Auth */}
+          {/* THE DROPDOWN MENU */}
+          {showDropdown && (
+            <div className="absolute top-full mt-2 left-0 right-0 bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+              {isSearching ? (
+                <div className="p-4 text-center text-sm text-gray-500 animate-pulse">Searching Vault...</div>
+              ) : searchResults.length > 0 ? (
+                <div className="flex flex-col">
+                  {searchResults.map((result) => (
+                    <Link
+                      key={result.id}
+                      href={`/user/${result.username}`}
+                      onClick={() => setShowDropdown(false)}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center text-xs font-bold shrink-0">
+                        {result.avatar_url ? (
+                          <img src={result.avatar_url} alt={result.username} className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                          result.username.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-gray-200">{result.username}</span>
+                        <span className="text-[10px] text-gray-500 font-medium">Reputation: {result.reputation || 0}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-sm text-gray-500">
+                  No users found matching "{userSearchQuery}"
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="flex gap-4 md:gap-6 text-sm items-center shrink-0">
           <Link href="/browse" className="text-gray-400 hover:text-white transition hidden md:block">Browse</Link>
           <Link href="/submit" className="text-gray-400 hover:text-white transition hidden md:block">Submit</Link>
@@ -109,7 +178,6 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero */}
       <section className="text-center py-24 px-6">
         <h1 className="text-5xl md:text-6xl font-black mb-6 tracking-tight bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
           The Best AI Prompts.<br />All in One Place.
@@ -118,7 +186,6 @@ export default function Home() {
           Search thousands of curated prompts for ChatGPT, Claude, Gemini, and Midjourney — organized by profession and use case.
         </p>
         
-        {/* Prompt Search Form */}
         <form onSubmit={handlePromptSearch} className="max-w-xl mx-auto flex gap-3">
           <input
             type="text"
@@ -136,7 +203,6 @@ export default function Home() {
         </form>
       </section>
 
-      {/* Categories */}
       <section className="max-w-5xl mx-auto px-6 pb-24">
         <h2 className="text-xl font-bold mb-6 text-white">Browse by Category</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
