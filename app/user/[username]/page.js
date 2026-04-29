@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase } from '../../../../lib/supabase' // Adjust the dots based on your folder depth!
+import { supabase } from '../../../lib/supabase' // Adjust the dots based on your folder depth!
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 
