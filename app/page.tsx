@@ -23,11 +23,20 @@ export default function Home() {
   const [promptSearchQuery, setPromptSearchQuery] = useState('')
   const [userSearchQuery, setUserSearchQuery] = useState('')
 
-  useEffect(() => {
+ useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
+      if (session) {
+        // THE INTERCEPTOR: Trap them if they haven't finished setup!
+        if (session.user.user_metadata?.setup_complete !== true) {
+          router.push('/setup')
+        } else {
+          setUser(session.user)
+        }
+      } else {
+        setUser(null)
+      }
     })
-  }, [])
+  }, [router])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
