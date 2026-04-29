@@ -2,7 +2,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '../../lib/supabase'
 import Link from 'next/link'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 
 const aiTools = ['All', 'claude', 'chatgpt', 'gemini', 'midjourney']
 const toolColors = {
@@ -31,7 +31,7 @@ function BrowseContent() {
   
   // States
   const [viewMode, setViewMode] = useState('prompts') // 'prompts' or 'directory'
-  const [search, setSearch] = useState(searchParams.get('q') || '') 
+  const [search, setSearch] = useState(searchParams.get('q') || '') // Fixed missing search state
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get('q') || '')
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [selectedTool, setSelectedTool] = useState('All')
@@ -40,7 +40,7 @@ function BrowseContent() {
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(null)
 
-  // Pagination States
+  // Step 1: Pagination States
   const [page, setPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const ITEMS_PER_PAGE = 20
@@ -66,16 +66,17 @@ function BrowseContent() {
     return () => clearTimeout(timer)
   }, [search])
 
-  // Reset page when filters change
+  // Step 3: Reset page when filters change
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch, selectedTool, selectedCategoryId])
 
-  // Refetch when page or filters change
+  // Step 3: Add 'page' to dependency array
   useEffect(() => {
     if (viewMode === 'prompts') fetchPrompts()
   }, [debouncedSearch, selectedTool, selectedCategoryId, viewMode, page])
 
+  // Step 2: Updated fetchPrompts function with pagination
   async function fetchPrompts() {
     setLoading(true)
     
@@ -167,7 +168,7 @@ function BrowseContent() {
               placeholder="Search prompts..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500 text-white"
+              className="w-full bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500"
             />
             
             <div className="flex flex-wrap gap-4 items-center justify-between">
@@ -224,7 +225,7 @@ function BrowseContent() {
                     </div>
                     <button
                       onClick={(e) => copyPrompt(e, prompt.prompt_text, prompt.id)}
-                      className="text-sm bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl transition shrink-0 z-10 relative text-white"
+                      className="text-sm bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl transition shrink-0 z-10 relative"
                     >
                       {copied === prompt.id ? '✅ Copied!' : '📋 Copy'}
                     </button>
@@ -234,13 +235,13 @@ function BrowseContent() {
             </div>
           )}
 
-          {/* Pagination UI */}
+          {/* Step 4: Pagination UI */}
           {!loading && totalCount > ITEMS_PER_PAGE && (
             <div className="flex items-center justify-center gap-3 mt-8">
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-sm text-white disabled:opacity-40 hover:border-violet-600 transition"
+                className="px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-sm disabled:opacity-40 hover:border-violet-600 transition"
               >
                 ← Previous
               </button>
@@ -252,7 +253,7 @@ function BrowseContent() {
               <button
                 onClick={() => setPage(p => Math.min(Math.ceil(totalCount / ITEMS_PER_PAGE), p + 1))}
                 disabled={page === Math.ceil(totalCount / ITEMS_PER_PAGE)}
-                className="px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-sm text-white disabled:opacity-40 hover:border-violet-600 transition"
+                className="px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-sm disabled:opacity-40 hover:border-violet-600 transition"
               >
                 Next →
               </button>
@@ -266,8 +267,6 @@ function BrowseContent() {
 
 export default function BrowsePage() {
   const [user, setUser] = useState(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const router = useRouter()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -275,56 +274,24 @@ export default function BrowsePage() {
     })
   }, [])
 
-  function handleSearch(e) {
-    e.preventDefault()
-    if (searchQuery.trim()) {
-      router.push(`/user/${encodeURIComponent(searchQuery.trim())}`)
-    }
-  }
-
   return (
-    <main className="min-h-screen bg-[#050505] text-white">
-      
-      {/* Navbar - Upgraded with User Search */}
-      <nav className="sticky top-0 z-40 border-b border-white/5 bg-[#050505]/80 backdrop-blur-md px-6 py-4 flex items-center justify-between gap-6">
-        
-        {/* Logo */}
-        <Link href="/" className="text-xl font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent hidden sm:block shrink-0">
-          PromptVault
-        </Link>
-
-        {/* The Search Bar */}
-        <form onSubmit={handleSearch} className="flex-1 max-w-lg mx-auto">
-          <div className="relative group">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search users (e.g. Rasesh)..."
-              className="w-full bg-white/5 border border-white/10 rounded-full pl-11 pr-4 py-2.5 text-sm outline-none focus:border-violet-500 focus:bg-white/10 transition-all text-white placeholder-gray-500 shadow-inner"
-            />
-            <button type="submit" className="hidden">Search</button>
-          </div>
-        </form>
-
-        {/* Navigation Links */}
-        <div className="flex gap-4 md:gap-6 text-sm items-center shrink-0">
-          <Link href="/browse" className="text-white font-medium hidden md:block">Browse</Link>
-          <Link href="/submit" className="text-gray-400 hover:text-white transition hidden md:block">Submit</Link>
-          
+    <main className="min-h-screen bg-gray-950 text-white">
+      <nav className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+        <Link href="/" className="text-xl font-bold text-violet-400">PromptVault</Link>
+        <div className="flex gap-4 text-sm text-gray-400 items-center">
+          <Link href="/browse" className="text-white font-medium">Browse</Link>
+          <Link href="/submit" className="hover:text-white">Submit</Link>
           {user ? (
-            <Link href="/profile" className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-[10px] font-bold ring-2 ring-white/10 cursor-pointer text-white">
-              {user.email?.[0].toUpperCase()}
+            <Link href="/profile" className="bg-gray-800 text-violet-300 px-4 py-1.5 rounded-full font-medium hover:bg-gray-700 hover:text-white transition">
+              {user.user_metadata?.username || user.email.split('@')[0]}
             </Link>
           ) : (
-            <Link href="/login" className="bg-white text-black px-4 py-1.5 rounded-full font-semibold text-xs hover:bg-gray-200 transition">
+            <Link href="/login" className="bg-violet-600 text-white px-4 py-1.5 rounded-full hover:bg-violet-500">
               Sign in
             </Link>
           )}
         </div>
       </nav>
-
       <Suspense fallback={<div className="text-center py-20 text-gray-500">Loading directory...</div>}>
         <BrowseContent />
       </Suspense>
