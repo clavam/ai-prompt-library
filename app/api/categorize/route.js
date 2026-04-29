@@ -116,7 +116,7 @@ export async function POST(req) {
             'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
           },
           body: JSON.stringify({
-            model: "llama3-8b-8192", // Meta's fast, free open-source model
+            model: "llama-3.1-8b-instant", // Meta's fast, free open-source model
             messages: [{ role: "system", content: systemPrompt }],
             temperature: 0.0
           })
