@@ -2,10 +2,8 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req) {
   try {
-    // 1. Receive the data from the frontend
     const { title, description, promptText } = await req.json();
 
-    // 2. The strict instructions for Gemini with your exhaustive category list
     const systemPrompt = `
     You are an expert categorization system for an AI Prompt Library.
     I will give you a prompt title, description, and the text itself.
@@ -70,46 +68,87 @@ export async function POST(req) {
     Prompt Text: ${promptText}
     `;
 
-    // 3. Make the secure request to Google Gemini (with Safety Filters disabled)
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: systemPrompt }] }],
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-        ]
-      })
-    });
+    let finalCategoryId = null;
 
-    const data = await geminiRes.json();
-    
-    // 4. Safe Extraction (Prevents the 'undefined' crash)
-    console.log("=== FULL GEMINI RESPONSE ===");
-    console.log(JSON.stringify(data, null, 2));
+    // ==========================================
+    // ATTEMPT 1: GOOGLE GEMINI (Primary)
+    // ==========================================
+    try {
+      console.log("Attempting Google Gemini...");
+      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: systemPrompt }] }],
+          safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+          ]
+        })
+      });
 
-    if (!data.candidates || data.candidates.length === 0) {
-      console.error("Gemini blocked the prompt or failed. Sending to 99.");
-      return NextResponse.json({ categoryId: 99 });
+      const data = await geminiRes.json();
+      
+      if (geminiRes.ok && data.candidates && data.candidates.length > 0) {
+        const aiText = data.candidates[0].content.parts[0].text.trim();
+        const match = aiText.match(/\d+/); 
+        if (match) finalCategoryId = parseInt(match[0]);
+        console.log("=== SUCCESS: Categorized by Gemini ===");
+      } else {
+        console.log("Gemini failed or was busy. Error:", data.error?.message || "Unknown error");
+      }
+    } catch (e) {
+      console.log("Gemini fetch crashed:", e.message);
     }
 
-    const aiText = data.candidates[0].content.parts[0].text.trim();
-    
-    // Use regex to pull only the number, ignoring any extra words
-    const match = aiText.match(/\d+/); 
-    const categoryId = match ? parseInt(match[0]) : 99;
+    // ==========================================
+    // ATTEMPT 2: GROQ FALLBACK (Meta Llama 3 - Free)
+    // ==========================================
+    if (!finalCategoryId) {
+      console.log("Falling back to Groq (Llama 3)...");
+      try {
+        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: "llama3-8b-8192", // Meta's fast, free open-source model
+            messages: [{ role: "system", content: systemPrompt }],
+            temperature: 0.0
+          })
+        });
 
-    console.log("=== CATEGORIZED AS:", categoryId, "===");
+        const groqData = await groqRes.json();
 
-    // 5. Send the ID back to the frontend
-    return NextResponse.json({ categoryId });
+        if (groqRes.ok && groqData.choices && groqData.choices.length > 0) {
+          const aiText = groqData.choices[0].message.content.trim();
+          const match = aiText.match(/\d+/);
+          if (match) finalCategoryId = parseInt(match[0]);
+          console.log("=== SUCCESS: Categorized by Groq ===");
+        } else {
+          console.log("Groq failed. Error:", groqData.error?.message || "Unknown error");
+        }
+      } catch (e) {
+        console.log("Groq fetch crashed:", e.message);
+      }
+    }
+
+    // ==========================================
+    // ATTEMPT 3: THE CATEGORY 99 SAFETY NET
+    // ==========================================
+    if (!finalCategoryId) {
+      console.log("Both AIs failed. Using Category 99 fallback.");
+      finalCategoryId = 99;
+    }
+
+    return NextResponse.json({ categoryId: finalCategoryId });
 
   } catch (error) {
-    console.error('AI Categorization Error:', error);
-    // If the API fails completely, still allow the prompt to submit as Miscellaneous
+    console.error('Fatal API Error:', error);
     return NextResponse.json({ categoryId: 99 }); 
   }
 }
