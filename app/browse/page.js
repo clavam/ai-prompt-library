@@ -12,7 +12,6 @@ const toolColors = {
   midjourney: 'bg-pink-500/20 text-pink-300 border border-pink-500/30',
 }
 
-// THE MASTER DIRECTORY: All 50 Categories with IDs
 const ALL_CATEGORIES = [
   { id: 1, name: 'Copywriting', icon: '✍️' }, { id: 2, name: 'Blog & Articles', icon: '📝' }, { id: 3, name: 'Creative Writing', icon: '📖' }, { id: 4, name: 'Email Drafting', icon: '📧' }, { id: 5, name: 'Social Media', icon: '📱' },
   { id: 6, name: 'Editing & Proofing', icon: '🔍' }, { id: 7, name: 'SEO & Keywords', icon: '🎯' }, { id: 8, name: 'Summarization', icon: '✂️' }, { id: 9, name: 'Translation', icon: '🌍' }, { id: 10, name: 'Scriptwriting', icon: '🎬' },
@@ -29,9 +28,8 @@ const ALL_CATEGORIES = [
 function BrowseContent() {
   const searchParams = useSearchParams()
   
-  // States
-  const [viewMode, setViewMode] = useState('prompts') // 'prompts' or 'directory'
-  const [search, setSearch] = useState(searchParams.get('q') || '') // Fixed missing search state
+  const [viewMode, setViewMode] = useState('prompts')
+  const [search, setSearch] = useState(searchParams.get('q') || '')
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get('q') || '')
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [selectedTool, setSelectedTool] = useState('All')
@@ -40,12 +38,10 @@ function BrowseContent() {
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(null)
 
-  // Step 1: Pagination States
   const [page, setPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const ITEMS_PER_PAGE = 20
 
-  // Initial load check for URL parameters
   useEffect(() => {
     const q = searchParams.get('q')
     if (q) setSearch(decodeURIComponent(q))
@@ -66,41 +62,87 @@ function BrowseContent() {
     return () => clearTimeout(timer)
   }, [search])
 
-  // Step 3: Reset page when filters change
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch, selectedTool, selectedCategoryId])
 
-  // Step 3: Add 'page' to dependency array
   useEffect(() => {
     if (viewMode === 'prompts') fetchPrompts()
   }, [debouncedSearch, selectedTool, selectedCategoryId, viewMode, page])
 
-  // Step 2: Updated fetchPrompts function with pagination
+  // THE BRAINS: Gemini Semantic Search + Supabase Fallback
   async function fetchPrompts() {
     setLoading(true)
     
     const from = (page - 1) * ITEMS_PER_PAGE
     const to = from + ITEMS_PER_PAGE - 1
-    
-    let query = supabase
-      .from('prompts')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(from, to)
-    
-    if (debouncedSearch) query = query.or(`title.ilike.%${debouncedSearch}%,description.ilike.%${debouncedSearch}%`)
-    if (selectedTool !== 'All') query = query.eq('ai_tool', selectedTool)
-    if (selectedCategoryId) query = query.eq('category_id', selectedCategoryId)
-    
-    const { data, error, count } = await query
-    
-    if (!error && data) {
-      setPrompts(data)
-      setTotalCount(count || 0)
-    } else {
-      setPrompts([])
+
+    // Helper: Our bulletproof fallback search
+    const doFallbackSearch = async () => {
+      let query = supabase
+        .from('prompts')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to)
+      
+      if (debouncedSearch) {
+        query = query.or(`title.ilike.%${debouncedSearch}%,description.ilike.%${debouncedSearch}%`)
+      }
+      if (selectedTool !== 'All') query = query.eq('ai_tool', selectedTool)
+      if (selectedCategoryId) query = query.eq('category_id', selectedCategoryId)
+      
+      const { data, error, count } = await query
+      
+      if (!error && data) {
+        setPrompts(data)
+        setTotalCount(count || 0)
+      } else {
+        setPrompts([])
+      }
     }
+    
+    // SCENARIO 1: The user typed a search query
+    if (debouncedSearch) {
+      try {
+        // Attempt AI Search First
+        const response = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ searchQuery: debouncedSearch })
+        })
+
+        // If the API crashes or rate limits, this throws an error and triggers the catch block
+        if (!response.ok) throw new Error('AI Search API failed')
+        
+        const data = await response.json()
+        
+        if (data.prompts) {
+          // Apply Filters to AI Results manually
+          let filteredResults = data.prompts
+          if (selectedTool !== 'All') {
+            filteredResults = filteredResults.filter(p => p.ai_tool === selectedTool)
+          }
+          if (selectedCategoryId) {
+             filteredResults = filteredResults.filter(p => p.category_id === selectedCategoryId)
+          }
+          
+          // Slice for client-side pagination
+          setTotalCount(filteredResults.length)
+          setPrompts(filteredResults.slice(from, to + 1))
+        } else {
+          // Empty or weird response? Fallback!
+          await doFallbackSearch()
+        }
+      } catch (error) {
+        console.warn("AI Search unavailable, falling back to standard search...", error)
+        await doFallbackSearch()
+      }
+    } 
+    // SCENARIO 2: No search query (Just browsing normally)
+    else {
+      await doFallbackSearch()
+    }
+    
     setLoading(false)
   }
 
@@ -114,7 +156,7 @@ function BrowseContent() {
 
   function selectCategory(id) {
     setSelectedCategoryId(id)
-    setViewMode('prompts') // Switch back to prompt view to show results
+    setViewMode('prompts')
   }
 
   const activeCategoryName = ALL_CATEGORIES.find(c => c.id === selectedCategoryId)?.name
@@ -122,7 +164,6 @@ function BrowseContent() {
   return (
     <div className="max-w-6xl mx-auto px-6 py-12">
       
-      {/* Top Controls: The Toggle */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <h1 className="text-3xl font-bold">Browse Vault</h1>
         
@@ -142,7 +183,6 @@ function BrowseContent() {
         </div>
       </div>
 
-      {/* VIEW: CATEGORY DIRECTORY */}
       {viewMode === 'directory' && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {ALL_CATEGORIES.map(cat => (
@@ -158,14 +198,12 @@ function BrowseContent() {
         </div>
       )}
 
-      {/* VIEW: ALL PROMPTS */}
       {viewMode === 'prompts' && (
         <>
-          {/* Filters Bar */}
           <div className="flex flex-col gap-4 mb-8">
             <input
               type="text"
-              placeholder="Search prompts..."
+              placeholder="Search prompts (AI Semantic Search active)..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-sm outline-none focus:border-violet-500"
@@ -186,7 +224,6 @@ function BrowseContent() {
                 ))}
               </div>
 
-              {/* Active Category Badge */}
               {selectedCategoryId && (
                 <div className="flex items-center gap-2 bg-violet-900/30 border border-violet-700 text-violet-300 px-4 py-2 rounded-xl text-sm">
                   <span>Filtered by: <strong>{activeCategoryName}</strong></span>
@@ -196,9 +233,8 @@ function BrowseContent() {
             </div>
           </div>
 
-          {/* Prompt Cards */}
           {loading ? (
-            <div className="text-gray-500 text-center py-20">Loading prompts...</div>
+            <div className="text-gray-500 text-center py-20">Searching Vault...</div>
           ) : prompts.length === 0 ? (
             <div className="text-gray-500 text-center py-20 bg-gray-900 border border-gray-800 rounded-2xl border-dashed">
               No prompts found matching your criteria.
@@ -235,7 +271,6 @@ function BrowseContent() {
             </div>
           )}
 
-          {/* Step 4: Pagination UI */}
           {!loading && totalCount > ITEMS_PER_PAGE && (
             <div className="flex items-center justify-center gap-3 mt-8">
               <button
