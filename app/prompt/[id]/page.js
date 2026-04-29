@@ -5,10 +5,10 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 
 const toolColors = {
-  claude: 'bg-orange-500/10 text-orange-400 border border-orange-500/20',
-  chatgpt: 'bg-green-500/10 text-green-400 border border-green-500/20',
-  gemini: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
-  midjourney: 'bg-pink-500/10 text-pink-400 border border-pink-500/20',
+  claude: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  chatgpt: 'bg-green-500/20 text-green-300 border-green-500/30',
+  gemini: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  midjourney: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
 }
 
 const toolLinks = {
@@ -27,11 +27,8 @@ export default function PromptPage() {
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [user, setUser] = useState(null)
-  
-  // Upvote States
   const [upvoted, setUpvoted] = useState(false)
   const [upvoteCount, setUpvoteCount] = useState(0)
-  const [isVoting, setIsVoting] = useState(false) // NEW: The spam-click lock
 
   // Collections States
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -47,7 +44,7 @@ export default function PromptPage() {
     })
   }, [id])
 
-  // Check if the user already upvoted this prompt
+  // NEW: Check if the user already upvoted this prompt
   useEffect(() => {
     if (user && id) checkUserVote()
   }, [user, id])
@@ -82,14 +79,11 @@ export default function PromptPage() {
     setLoading(false)
   }
 
-  // BULLETPROOF UPVOTE LOGIC
+  // UPGRADED: Toggle upvotes (Add or Remove)
   async function handleUpvote() {
     if (!user) { router.push('/login'); return }
-    if (isVoting) return // Drops extra clicks if it's already processing
-    
-    setIsVoting(true) // Lock the button
 
-    // SCENARIO 1: REMOVING AN UPVOTE
+    // IF ALREADY UPVOTED -> REMOVE THE VOTE
     if (upvoted) {
       const { error } = await supabase
         .from('votes')
@@ -98,28 +92,23 @@ export default function PromptPage() {
         .eq('user_id', user.id)
 
       if (!error) {
-        // Safety net: Math.max ensures it NEVER goes below 0
-        const safeCount = Math.max(0, upvoteCount - 1) 
-        await supabase.from('prompts').update({ upvotes: safeCount }).eq('id', id)
-        setUpvoteCount(safeCount)
+        await supabase.from('prompts').update({ upvotes: upvoteCount - 1 }).eq('id', id)
+        setUpvoteCount(prev => prev - 1)
         setUpvoted(false)
       }
-      setIsVoting(false) // Unlock
       return
     }
 
-    // SCENARIO 2: ADDING AN UPVOTE
+    // IF NOT UPVOTED -> ADD THE VOTE
     const { error } = await supabase
       .from('votes')
       .insert({ user_id: user.id, prompt_id: id })
 
     if (!error) {
-      const newCount = upvoteCount + 1
-      await supabase.from('prompts').update({ upvotes: newCount }).eq('id', id)
-      setUpvoteCount(newCount)
+      await supabase.from('prompts').update({ upvotes: upvoteCount + 1 }).eq('id', id)
+      setUpvoteCount(prev => prev + 1)
       setUpvoted(true)
     }
-    setIsVoting(false) // Unlock
   }
 
   function copyPrompt() {
@@ -129,6 +118,7 @@ export default function PromptPage() {
   }
 
   // --- COLLECTIONS LOGIC ---
+
   async function handleOpenSaveModal() {
     if (!user) { 
       router.push('/login')
@@ -192,28 +182,26 @@ export default function PromptPage() {
   }
 
   if (loading) return (
-    <main className="min-h-screen bg-[#050505] text-white flex items-center justify-center">
-      <div className="text-gray-500 animate-pulse">Loading prompt...</div>
+    <main className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
+      <div className="text-gray-500">Loading prompt...</div>
     </main>
   )
 
   if (!prompt) return null
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white relative selection:bg-violet-500/30">
-      
-      {/* Upgraded Navbar */}
-      <nav className="border-b border-white/5 bg-[#050505]/80 backdrop-blur-md px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="text-xl font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">PromptVault</Link>
+    <main className="min-h-screen bg-gray-950 text-white relative">
+      <nav className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+        <Link href="/" className="text-xl font-bold text-violet-400">PromptVault</Link>
         <div className="flex gap-4 text-sm text-gray-400 items-center">
-          <Link href="/browse" className="hover:text-white transition">Browse</Link>
-          <Link href="/submit" className="hover:text-white transition">Submit</Link>
+          <Link href="/browse" className="hover:text-white">Browse</Link>
+          <Link href="/submit" className="hover:text-white">Submit</Link>
           {user ? (
-            <Link href="/profile" className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-[10px] font-bold ring-2 ring-white/10 text-white hover:scale-105 transition-transform">
-              {user.email?.[0].toUpperCase()}
-            </Link>
+            <span className="text-violet-300 font-medium">
+              {user.user_metadata?.username || user.email.split('@')[0]}
+            </span>
           ) : (
-            <Link href="/login" className="bg-white text-black px-4 py-1.5 rounded-full hover:bg-gray-200 transition font-semibold">
+            <Link href="/login" className="bg-violet-600 text-white px-4 py-1.5 rounded-full hover:bg-violet-500">
               Sign in
             </Link>
           )}
@@ -221,107 +209,102 @@ export default function PromptPage() {
       </nav>
 
       <div className="max-w-3xl mx-auto px-6 py-12">
-        <Link href="/browse" className="text-sm text-gray-500 hover:text-gray-300 flex items-center gap-2 mb-8 transition group">
-          <span className="group-hover:-translate-x-1 transition-transform">←</span> Back to Browse
+        <Link href="/browse" className="text-sm text-gray-500 hover:text-gray-300 flex items-center gap-1 mb-8">
+          ← Back to Browse
         </Link>
 
         <div className="flex items-start justify-between gap-4 mb-4">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{prompt.title}</h1>
-          <span className={`text-xs px-3 py-1.5 rounded-md font-bold uppercase tracking-wider shrink-0 ${toolColors[prompt.ai_tool] || 'bg-white/5 text-gray-400 border border-white/10'}`}>
+          <h1 className="text-3xl font-bold">{prompt.title}</h1>
+          <span className={`text-sm px-3 py-1 rounded-full border shrink-0 ${toolColors[prompt.ai_tool] || 'bg-gray-700 text-gray-300 border-gray-600'}`}>
             {prompt.ai_tool}
           </span>
         </div>
 
         {prompt.description && (
-          <p className="text-gray-400 text-lg mb-6 leading-relaxed">{prompt.description}</p>
+          <p className="text-gray-400 mb-6">{prompt.description}</p>
         )}
 
-        <div className="flex gap-6 text-sm text-gray-500 font-bold mb-8 border-b border-white/5 pb-8">
-          <span>👁 {prompt.views || 0} VIEWS</span>
-          <span>👍 {upvoteCount} UPVOTES</span>
-          {prompt.use_case && <span>🎯 {prompt.use_case.toUpperCase()}</span>}
+        <div className="flex gap-6 text-sm text-gray-500 mb-8">
+          <span>👁 {prompt.views || 0} views</span>
+          <span>👍 {upvoteCount} upvotes</span>
+          {prompt.use_case && <span>🎯 {prompt.use_case}</span>}
         </div>
 
-        <div className={`relative group transition-all duration-500 rounded-3xl border ${copied ? 'border-violet-500 shadow-[0_0_30px_-10px_rgba(139,92,246,0.3)]' : 'border-white/10 bg-white/[0.02]'} p-1 mb-8`}>
-          <div className="bg-[#0a0a0a] rounded-[22px] p-6 md:p-8">
-            <div className="flex items-center justify-between mb-6">
-              <span className="text-xs text-gray-500 font-black uppercase tracking-widest">Source Text</span>
-              <button
-                onClick={copyPrompt}
-                className={`text-xs px-5 py-2.5 rounded-xl transition-all font-bold active:scale-95 ${copied ? 'bg-green-500 text-white' : 'bg-violet-600 hover:bg-violet-500 text-white'}`}
-              >
-                {copied ? '✅ COPIED!' : '📋 COPY PROMPT'}
-              </button>
-            </div>
-            <pre className="text-gray-200 font-mono text-sm leading-relaxed whitespace-pre-wrap">
-              {prompt.prompt_text}
-            </pre>
+        <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm text-gray-400 font-medium">Prompt</span>
+            <button
+              onClick={copyPrompt}
+              className="text-sm bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl transition"
+            >
+              {copied ? '✅ Copied!' : '📋 Copy Prompt'}
+            </button>
           </div>
+          <p className="text-gray-200 font-mono text-sm leading-relaxed whitespace-pre-wrap">
+            {prompt.prompt_text}
+          </p>
         </div>
 
         {prompt.tags?.length > 0 && (
           <div className="flex gap-2 flex-wrap mb-8">
             {prompt.tags.map(tag => (
-              <span key={tag} className="text-xs font-bold bg-white/5 text-gray-400 px-3 py-1.5 rounded-lg border border-white/5">
+              <span key={tag} className="text-xs bg-gray-800 text-gray-400 px-3 py-1 rounded-full">
                 #{tag}
               </span>
             ))}
           </div>
         )}
 
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-4 mt-8 pt-8 border-t border-gray-800">
           <button
             onClick={handleUpvote}
-            disabled={isVoting}
-            className={`flex items-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition text-sm ${
               upvoted
-                ? 'bg-violet-600 text-white shadow-[0_0_20px_-5px_rgba(139,92,246,0.4)]'
-                : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5'
+                ? 'bg-violet-900/40 text-violet-300 border border-violet-700'
+                : 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-700'
             }`}
           >
-            {isVoting ? '⏳' : '👍'} {upvoted ? 'UPVOTED' : 'UPVOTE'} <span className="opacity-50">|</span> {upvoteCount}
+            👍 {upvoted ? 'Upvoted!' : 'Upvote'} · {upvoteCount}
           </button>
 
           <button
             onClick={handleOpenSaveModal}
-            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5 px-6 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95"
+            className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 px-6 py-3 rounded-xl font-medium text-sm transition"
           >
-            🔖 SAVE TO VAULT
+            🔖 Save
           </button>
           
           <a href={toolLinks[prompt.ai_tool] || '#'}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-white text-black hover:bg-gray-200 px-6 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95 ml-auto"
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 px-6 py-3 rounded-xl font-medium text-sm transition ml-auto"
           >
-            OPEN IN {prompt.ai_tool.toUpperCase()} ↗
+            Try in {prompt.ai_tool.charAt(0).toUpperCase() + prompt.ai_tool.slice(1)} &rarr;
           </a>
         </div>
       </div>
 
-      {/* Collections Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-[#0f0f0f] border border-white/10 rounded-[32px] w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
             
-            <div className="p-6 border-b border-white/5 flex justify-between items-center">
+            <div className="p-6 border-b border-gray-800 flex justify-between items-center">
               <h3 className="text-xl font-bold">Save to Collection</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-white text-xl transition">
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-white text-xl">
                 &times;
               </button>
             </div>
 
             <div className="p-6">
               {saveMessage && (
-                <div className={`text-sm font-bold mb-4 p-3 rounded-xl ${saveMessage.includes('✅') ? 'bg-green-500/10 text-green-400' : 'bg-orange-500/10 text-orange-400'}`}>
+                <div className={`text-sm mb-4 p-3 rounded-lg ${saveMessage.includes('✅') ? 'bg-green-500/20 text-green-300' : 'bg-orange-500/20 text-orange-300'}`}>
                   {saveMessage}
                 </div>
               )}
 
-              <div className="max-h-60 overflow-y-auto mb-6 pr-2 custom-scrollbar">
+              <div className="max-h-60 overflow-y-auto mb-6 pr-2">
                 {collections.length === 0 ? (
-                  <p className="text-gray-500 text-sm text-center py-4 font-medium">You don't have any collections yet.</p>
+                  <p className="text-gray-500 text-sm text-center py-4">You don't have any collections yet.</p>
                 ) : (
                   <div className="space-y-2">
                     {collections.map(col => (
@@ -329,10 +312,10 @@ export default function PromptPage() {
                         key={col.id}
                         onClick={() => saveToCollection(col.id)}
                         disabled={isSaving}
-                        className="w-full group text-left px-4 py-4 bg-white/5 hover:bg-violet-600 rounded-2xl text-sm font-bold transition-all flex justify-between items-center"
+                        className="w-full text-left px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm font-medium transition flex justify-between items-center"
                       >
                         {col.name}
-                        <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px]">ADD +</span>
+                        <span className="text-gray-500 hover:text-violet-400">+ Add</span>
                       </button>
                     ))}
                   </div>
@@ -345,15 +328,15 @@ export default function PromptPage() {
                   placeholder="New collection name..."
                   value={newCollectionName}
                   onChange={(e) => setNewCollectionName(e.target.value)}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm outline-none focus:border-violet-500 transition-colors"
+                  className="flex-1 bg-gray-950 border border-gray-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-violet-500"
                   required
                 />
                 <button
                   type="submit"
                   disabled={isSaving || !newCollectionName.trim()}
-                  className="bg-violet-600 hover:bg-violet-500 text-white px-5 py-3 rounded-2xl text-xs font-bold transition-all disabled:opacity-50 shrink-0"
+                  className="bg-violet-600 hover:bg-violet-500 disabled:bg-gray-800 disabled:text-gray-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition shrink-0"
                 >
-                  CREATE
+                  Create & Save
                 </button>
               </form>
             </div>
