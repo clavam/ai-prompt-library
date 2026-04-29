@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai'
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
 export async function POST(req) {
   try {
@@ -145,10 +148,30 @@ export async function POST(req) {
       finalCategoryId = 99;
     }
 
-    return NextResponse.json({ categoryId: finalCategoryId });
+    // ==========================================
+    // NEW: GENERATE AI VECTOR (3072 Dimensions)
+    // ==========================================
+    let embedding = null;
+    try {
+      console.log("Generating Semantic Vector...");
+      const textToEmbed = `${title} ${description} ${promptText}`;
+      const embedModel = genAI.getGenerativeModel({ model: 'gemini-embedding-2' });
+      const embedResult = await embedModel.embedContent(textToEmbed);
+      embedding = embedResult.embedding.values;
+      console.log("=== SUCCESS: Vector Generated ===");
+    } catch (embedError) {
+      console.error("Failed to generate embedding:", embedError.message);
+      // We don't throw here so the user can still save their prompt even if the embedding fails
+    }
+
+    // Return BOTH the category ID and the new AI brain mapping back to the frontend
+    return NextResponse.json({ 
+      categoryId: finalCategoryId,
+      embedding: embedding 
+    });
 
   } catch (error) {
     console.error('Fatal API Error:', error);
-    return NextResponse.json({ categoryId: 99 }); 
+    return NextResponse.json({ categoryId: 99, embedding: null }); 
   }
 }
