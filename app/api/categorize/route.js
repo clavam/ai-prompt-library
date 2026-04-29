@@ -70,36 +70,46 @@ export async function POST(req) {
     Prompt Text: ${promptText}
     `;
 
-    // 3. Make the secure request to Google Gemini
+    // 3. Make the secure request to Google Gemini (with Safety Filters disabled)
     const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: systemPrompt }] }]
+        contents: [{ parts: [{ text: systemPrompt }] }],
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+        ]
       })
     });
 
     const data = await geminiRes.json();
     
-    // 4. Extract the number from Gemini's response
-    const aiText = data.candidates[0].content.parts[0].text.trim();
-    // 4. Extract the number from Gemini's response
+    // 4. Safe Extraction (Prevents the 'undefined' crash)
+    console.log("=== FULL GEMINI RESPONSE ===");
+    console.log(JSON.stringify(data, null, 2));
+
+    if (!data.candidates || data.candidates.length === 0) {
+      console.error("Gemini blocked the prompt or failed. Sending to 99.");
+      return NextResponse.json({ categoryId: 99 });
+    }
+
     const aiText = data.candidates[0].content.parts[0].text.trim();
     
-    // --> ADD THESE TWO LINES SO WE CAN SEE IT IN VERCEL <--
-    console.log("=== GEMINI RAW ANSWER ===");
-    console.log(aiText);
-
+    // Use regex to pull only the number, ignoring any extra words
     const match = aiText.match(/\d+/); 
     const categoryId = match ? parseInt(match[0]) : 99;
-    const categoryId = parseInt(aiText) || 99; // Fallback to 99 if it fails to parse
+
+    console.log("=== CATEGORIZED AS:", categoryId, "===");
 
     // 5. Send the ID back to the frontend
     return NextResponse.json({ categoryId });
 
   } catch (error) {
     console.error('AI Categorization Error:', error);
-    // If the API fails, still allow the prompt to submit as Miscellaneous
+    // If the API fails completely, still allow the prompt to submit as Miscellaneous
     return NextResponse.json({ categoryId: 99 }); 
   }
 }
